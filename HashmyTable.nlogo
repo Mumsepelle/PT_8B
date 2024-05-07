@@ -1,253 +1,101 @@
-; DA382A_Project_VT24
-; template for the programming task with cops and citizen agents
-;
-; See the description in the file README on GitHub on how to work with the project files
-;
-;
-;
+globals[hashTable]
+extensions[table]
+turtles-own[anger fear]
 
-
-
-
-; ************ INCLUDED FILES *****************
-__includes [
-    "setupenvironment.nls" ; setup-functions for setting up the environment with houses town-square, work-places, prison, police-station, restaurants, ....
-    "citizens.nls" ; code for citizen agents
-    "cops.nls"; code for cop agents
-    "bdi.nls" ; contains the extension code for bdi with beliefs hash-tables and intention stacks
-    "communication.nls"; contains the extension for FIPA-like communication protocols
-    "time_library.nls"; code for the time extension library
-    "vid.nls" ; contains the code for the recorder. You also need to activate the vid-extension and the command at the end of setup
-]
-; ********************end included files ********
-
-; ************ EXTENSIONS *****************
-extensions [
- vid bitmap; used for recording of the simulation
-  table      ;extension for HashTable
-]
-; ********************end extensions ********
-
-;****************** INITIAL AND DEFINITIONS PART **********
-;
-;----- Breeds of agents
-breed [citizens citizen]  ;
-breed [cops cop] ;
-
-globals [
-  ;
-  ; Global variables used by the citizen agents to adapt their local variables
-  L;------------------------current global government legitimacy
-  newArrests;---------------number of newly arrested citizens during the time interval
-  alfa;---------------------constant factor that determines how fast arresting episodes are forgotten
-  glbFear;------------------value for the collective global fear amongst citizen agents
-  nArrests;-----------------Total number of currently arrested citizens
-  Jmax;---------------------Maximum jail term that a citizen can be sentenced to
-
-
-  ; Global variables for the Observer to monitor the dynamics and the result of the simulation
-  max-jailterm
-  numPrisoners ; Number of prisoners
-
-
-  ;----- Time variables
-  ; we might instead want to make use of the time extension, see https://ccl.northwestern.edu/netlogo/docs/time.html
-  time; One tick represents x minutes, time contains the sum of minutes for a day
-  flagMorning ; true if it is morning, e.g. time to get up
-  flagAfternoon;
-  flagEvening ; true if it is evening
-  flagWeekend ; true if it is a weekend (2-days, Saturday and Sunday)
-  tick-datetime
-  sim-time               ; The current simulation time
-  sim-start-time
-  start-time
-  time-simulated   ; Text string showing how much time has been simulated, with the units specified on the Interface
-  sim-start-logotime
-
-  timeTaker-stop-time
-
-
-
-  ;----- Spatial units, locations
-  locPrison ; location of the prison
-  locPolStation; location of the police station
-  locFactory; location of the factory
-  locUni; location of the university
-  locWork; location of the work-place
-  locTownSquare; location of the town square
-  locCinema; location of the entertainment-place
-  locRestaurant; location of the restaurant
-  locSocialEvents; location of the volunteer place
-  numFreeCitizens
-  newarrest
-
-  ;-------HASH TABLE-------
-  hashTable
-  average-frustration
-  average-anger
-  average-fear
-  number-ready-to-demonstrate
-  willingness-to-demonstrate
-  decision-to-demonstrate
-]
-
-
-
-;---- General agent variables
-turtles-own [
-  ;speed
-  beliefs
-  intentions
-  incoming-queue
-]
-
-;---- Specific, local variables of patches
-patches-own [
-  neighborhood        ; surrounding patches within the vision radius
-  region              ; used for identification of different regions
-]
-
-
-
-
-; ######################## SETUP PART ################################
-; setup of the environment, and the different agents
+;======================================================================
 to setup
   clear-all
-  ; define global variables that are not set as sliders
-  set max-jailterm 10
 
-  ; initialize general global variables (could also be moved to setup-environment)
-  set numFreeCitizens 0
-  set numPrisoners 0
-  set newarrest 0
+  setupHash
 
-  ; setup of the environment:
-  setup-environment ;
-  ; setup of all patches
+  create-turtles 5
+  [
+    set anger random 10
+    addToHashTable (word who) "anger" (word anger)
 
-  ; setup citizens
-  setup-citizens
-
-  ; setup cops
-  setup-cops
-
-  ; time section
-  initTime ; initialize the time and clock variables
-
-  ;HashTable section
-  setupHashTable
-  print hashTable
-
-  ; must be last in the setup-part:
-  reset-ticks
-  ;recorder
-  if vid:recorder-status = "recording" [
-    if Source = "Only View" [vid:record-view] ; records the plane
-    if Source = "With Interface" [vid:record-interface] ; records the interface
+    set fear random 10
+    addToHashTable (word who) "fear" (word fear)
   ]
-
 end
 
-; **************************end setup part *******
-
-
-
-; ########################## TO GO/ STARTING PART ########################
-;;
-to go
-
-  ;---- Time updates
-  ;
-  tick ;- update time
-  update-time-flags ;- update time
-
-  ;UPDATES THE VALUE OF TIME-SIMULATED FOR DISPLAY PURPOSE
-  set time-simulated (word (time:difference-between sim-start-time sim-time "minute") " minutes")
-
-  timeWrapAround
-
-
-  ;---- Update of Global Variables
-  ; update of global variables like for example fear, frustration and legitimation
-  ;
-  ; if dailyFlag [
-  set L (1 / (exp((newarrest / num-citizens))))
-  count-new-arrests
-  ;    set dailyFlag false
-   ; ]
-
-  ; update for the observer functions like changes in number of arrests
-  ;
-
-
-  ;---- Agents to-go part -------------
-  ; Cyclic execution of what the agents are supposed to do
-  ;
-  ask turtles [
-    ; based on the type of agent
-    if (breed = citizens) [
-      citizen_behavior ; code as defined in the include-file "citizens.nls
-      ]
-    if (breed = cops) [
-      cop_behavior ; code as defined in the include-file "cops.nls"
-      ]
-
-  ]
-
-
-
-
-
-
-  ;recorder
- if vid:recorder-status = "recording" [
-    if Source = "Only View" [vid:record-view] ; records the plane
-    if Source = "With Interface" [vid:record-interface] ; records the interface
-  ]
-
-end ; - to go part
-
-
-
-; ####################### OBSERVER FUNCTIONS ##############################
-; monitoring functions with plots for number of arrested citizens
-
-
-;-----------------------
-
-to-report count-free-citizens
-  report count citizens with [not inPrison?]
-end
-
-to count-new-arrests
-  let new-arrest (citizens with [(color = red) and inPrison?])
-  set newarrest count new-arrest
-end
-
-to setupHashTable
-
+;======================================================================
+;SETS UP THE KEYS FOR THE HASH TABLE
+to setupHash
   set hashTable table:make
-  table:put hashTable "fear" "0"
-  table:put hashTable "frustration" "0"
-  table:put hashTable "anger" "0"
-  table:put hashTable "numToDemonstrate" "0"
-  table:put hashTable "willToDemonstrate" "0"
-  table:put hashTable "decisionToDemonstrate" "0"
+  table:put hashTable "fear" (table:make)
+  table:put hashTable "anger" (table:make)
+
+  ;table:put hashTable "whos" []
+  ;table:put hashTable "frustration" "0"
+  ;table:put hashTable "numToDemonstrate" "0"
+  ;table:put hashTable "willToDemonstrate" "0"
+  ;table:put hashTable "decisionToDemonstrate" "0"
+end
+
+;======================================================================
+to addToHashTable [whos key value]
+
+  ifelse table:has-key? hashTable key
+  [
+    let innerTable table:get hashTable key
+    table:put innerTable whos value
+    table:put hashTable key innerTable
+  ]
+  [print "Table doesn't contain key"]
 
 end
 
+;======================================================================
+;REPORT FUNCTION THAT RETURNS THE AVERAGE OF THE VALUES ASSOCIATED TO THE PARAMETER 'key'
+;HOW TO: let anger_average getAverage "anger"
+to-report getAverage [key]
 
+  let innerTable table:get hashTable key
+  let values table:values innerTable
 
+  let i 0
+  let summa 0
+  let len length values
+  while [i < len ]
+  [
+    set summa (summa + read-from-string(item i values))
+
+    set i (i + 1)
+  ]
+
+  let average summa / len
+  ;print word word word "Average of " key " = " average
+
+  report average
+
+end
+
+;======================================================================
+to printHash
+  let array[]
+  set array table:get hashTable "anger"
+  print array
+  ;print word "FEAR: " table:get hashTable "fear"
+  ;print word "ANGER: " table:get hashTable "anger"
+end
+
+;======================================================================
+to go
+  print table:get hashTable "anger"
+end
+
+;============================TERMINAL COMMANDS====================================
+;ask turtle 0 [addToHashTable "0" "anger" "69"]
+;ask turtle 0[print getAverage "anger"]
 @#$#@#$#@
 GRAPHICS-WINDOW
-549
+210
 10
-1731
-614
+647
+448
 -1
 -1
-17.5224
+13.0
 1
 10
 1
@@ -257,318 +105,66 @@ GRAPHICS-WINDOW
 1
 1
 1
-0
-66
-0
-33
+-16
+16
+-16
+16
 0
 0
 1
 ticks
-60.0
-
-SLIDER
-23
-397
-137
-430
-num-citizens
-num-citizens
-1
-150
-21.0
-1
-1
-NIL
-HORIZONTAL
+30.0
 
 BUTTON
-464
-34
-527
-67
-setup
-setup
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-463
-83
-526
-116
-go
-go
-T
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-SLIDER
-23
-437
-136
-470
-num-cops
-num-cops
-0
-150
-9.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-156
-398
-248
-431
-citizen-vision
-citizen-vision
-1
-10
-3.0
-0.1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-156
-436
-248
-469
-cop-vision
-cop-vision
-1
-100
-9.0
-0.1
-1
-NIL
-HORIZONTAL
-
-BUTTON
-21
-500
-109
-533
-start recorder
-start-recorder
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-19
-542
-108
-575
-reset recorder
-reset-recorder
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-18
-584
-107
-617
-save recording
-save-recording
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-MONITOR
-124
-503
-244
-548
-NIL
-vid:recorder-status
-3
-1
-11
-
-CHOOSER
-124
-559
-243
-604
-Source
-Source
-"Only View" "With Interface"
-0
-
-TEXTBOX
-18
-468
-253
-496
-_______________________________________
-11
-0.0
-1
-
-SWITCH
-26
-219
-163
-252
-showPatchLabels
-showPatchLabels
-0
-1
--1000
-
-SWITCH
-25
-263
-163
-296
-show-intentions
-show-intentions
-1
-1
--1000
-
-SWITCH
-26
-307
-163
-340
-show_messages
-show_messages
-1
-1
--1000
-
-SWITCH
-25
-350
-159
-383
-Debug
-Debug
-0
-1
--1000
-
-PLOT
-211
-213
-411
-363
-Legitimacy
-NIL
-NIL
-0.0
-1.0
-0.0
-1.0
-true
-false
-"" ""
-PENS
-"default" 1.0 0 -16777216 true "" "plot L"
-
-MONITOR
-47
-66
-173
-111
-NIL
-newarrest
-17
-1
-11
-
-MONITOR
-215
-158
-328
-203
-NIL
-L
-17
-1
-11
-
-CHOOSER
-292
-408
-474
-453
-copSource
-copSource
-"rule-of-law" "arrest-troublemakers"
-1
-
-MONITOR
-221
+784
 60
-327
-105
-show-time
-show-time
-0
-1
-11
-
-MONITOR
-219
-108
-328
-153
-time-simulated
-time-simulated
-0
-1
-11
-
-MONITOR
-48
-141
-165
-186
+851
+94
 NIL
-count-free-citizens
-0
+setup
+NIL
 1
-11
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+919
+87
+1013
+121
+NIL
+printHash
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+777
+135
+841
+169
+NIL
+go
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -786,29 +382,6 @@ Polygon -7500403 true true 105 90 120 195 90 285 105 300 135 300 150 225 165 300
 Rectangle -7500403 true true 127 79 172 94
 Polygon -7500403 true true 195 90 240 150 225 180 165 105
 Polygon -7500403 true true 105 90 60 150 75 180 135 105
-
-person police
-false
-0
-Polygon -1 true false 124 91 150 165 178 91
-Polygon -13345367 true false 134 91 149 106 134 181 149 196 164 181 149 106 164 91
-Polygon -13345367 true false 180 195 120 195 90 285 105 300 135 300 150 225 165 300 195 300 210 285
-Polygon -13345367 true false 120 90 105 90 60 195 90 210 116 158 120 195 180 195 184 158 210 210 240 195 195 90 180 90 165 105 150 165 135 105 120 90
-Rectangle -7500403 true true 123 76 176 92
-Circle -7500403 true true 110 5 80
-Polygon -13345367 true false 150 26 110 41 97 29 137 -1 158 6 185 0 201 6 196 23 204 34 180 33
-Line -13345367 false 121 90 194 90
-Line -16777216 false 148 143 150 196
-Rectangle -16777216 true false 116 186 182 198
-Rectangle -16777216 true false 109 183 124 227
-Rectangle -16777216 true false 176 183 195 205
-Circle -1 true false 152 143 9
-Circle -1 true false 152 166 9
-Polygon -1184463 true false 172 112 191 112 185 133 179 133
-Polygon -1184463 true false 175 6 194 6 189 21 180 21
-Line -1184463 false 149 24 197 24
-Rectangle -16777216 true false 101 177 122 187
-Rectangle -16777216 true false 179 164 183 186
 
 plant
 false
