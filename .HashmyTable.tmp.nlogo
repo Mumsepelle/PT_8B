@@ -73,8 +73,6 @@ to-report getAverage [key]
 
 end
 ;======================================================================
-;REPORTS TOTAL OF A GIVEN KEY IN THE HASHTABLE
-;HOW TO: getTotal "anger"
 to-report getTotal[key]
 
   let innerTable table:get hashTable key
